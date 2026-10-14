@@ -1,0 +1,879 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Broadcast Countdown</title>
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<style>
+  :root{
+    /* display (what goes to the switcher) */
+    --disp-bg: #0b0e12;
+    --disp-color: #ffffff;
+    --disp-font: 'Bahnschrift', 'Segoe UI', sans-serif;
+    --disp-size: 18vw;
+    --blink-color: #ff2d2d;
+
+    /* control panel UI */
+    --ui-bg: #0f1217;
+    --ui-card: #171b22;
+    --ui-field: #0f1217;
+    --ui-border: #272d38;
+    --ui-border-hover: #3a4352;
+    --ui-text: #e6e9ee;
+    --ui-muted: #8a93a3;
+    --ui-faint: #5d6675;
+    --ui-accent: #4c8dff;
+    --ui-green: #2fb457;
+    --ui-amber: #e5a60a;
+    --ui-red: #e5534b;
+    --ui-radius: 12px;
+    --ui-ctl: 36px;
+  }
+  *{box-sizing:border-box;}
+  html,body{
+    margin:0; padding:0; height:100%;
+    background:var(--ui-bg);
+    font-family:system-ui, 'Segoe UI', Roboto, Arial, sans-serif;
+    font-size:14px;
+    color:var(--ui-text);
+    -webkit-font-smoothing:antialiased;
+  }
+
+  /* ---------- Display (cropped into the video composite) ---------- */
+  #display{
+    height:46vh;
+    min-height:220px;
+    display:flex;
+    align-items:center;
+    justify-content:center;
+    background:var(--disp-bg);
+    color:var(--disp-color);
+    font-family:var(--disp-font);
+    font-size:var(--disp-size);
+    font-variant-numeric: tabular-nums;
+    letter-spacing:0.02em;
+    line-height:1;
+    user-select:none;
+    transition:background .15s ease, color .15s ease;
+    text-align:center;
+    padding:0 2vw;
+  }
+  #display.blink{ background:var(--blink-color); }
+  #label-overlay{ position:relative; }
+  .sublabel{
+    font-size:0.14em;
+    opacity:0.75;
+    display:block;
+    font-family:'Segoe UI', sans-serif;
+    letter-spacing:0.08em;
+    margin-top:0.05em;
+  }
+  .cropbar{
+    height:28px;
+    display:flex; align-items:center; justify-content:center;
+    font-size:11px; letter-spacing:0.08em; text-transform:uppercase;
+    color:var(--ui-faint);
+    background:var(--ui-bg);
+    border-bottom:1px solid var(--ui-border);
+  }
+
+  /* ---------- Layout ---------- */
+  #panel{
+    padding:20px 24px 40px;
+    max-width:1240px;
+    margin:0 auto;
+    display:flex;
+    flex-direction:column;
+    gap:16px;
+  }
+  .grid{
+    display:grid;
+    grid-template-columns:repeat(auto-fit, minmax(320px, 1fr));
+    gap:16px;
+    align-items:stretch;
+  }
+  .col{ display:flex; flex-direction:column; gap:16px; min-width:0; }
+  .col > .card:last-child{ flex:1; }
+  .card{
+    background:var(--ui-card);
+    border:1px solid var(--ui-border);
+    border-radius:var(--ui-radius);
+    padding:16px 18px 18px;
+    display:flex;
+    flex-direction:column;
+    gap:14px;
+    min-width:0;
+  }
+  .card > h3{
+    margin:0;
+    font-size:11px;
+    font-weight:700;
+    letter-spacing:0.1em;
+    text-transform:uppercase;
+    color:var(--ui-muted);
+    display:flex; align-items:center; gap:8px;
+  }
+  .card > h3::before{
+    content:""; width:3px; height:12px; border-radius:2px; background:var(--ui-accent);
+  }
+
+  /* ---------- Fields ---------- */
+  .field{ display:flex; flex-direction:column; gap:6px; min-width:0; }
+  .two{ display:grid; grid-template-columns:1fr 1fr; gap:12px; }
+  label{
+    display:flex; justify-content:space-between; align-items:baseline;
+    font-size:12px; color:var(--ui-muted);
+  }
+  label .val{ color:var(--ui-text); font-variant-numeric:tabular-nums; }
+
+  input[type="number"], input[type="text"], select{
+    width:100%;
+    height:var(--ui-ctl);
+    background:var(--ui-field);
+    border:1px solid var(--ui-border);
+    color:var(--ui-text);
+    border-radius:8px;
+    padding:0 10px;
+    font:inherit;
+    font-size:14px;
+    transition:border-color .12s ease, box-shadow .12s ease;
+  }
+  select{ cursor:pointer; }
+  input::placeholder{ color:var(--ui-faint); }
+  input:hover, select:hover{ border-color:var(--ui-border-hover); }
+  input:focus-visible, select:focus-visible, button:focus-visible{
+    outline:none;
+    border-color:var(--ui-accent);
+    box-shadow:0 0 0 3px rgba(76,141,255,.25);
+  }
+  input[type="color"]{
+    width:100%;
+    height:var(--ui-ctl);
+    padding:3px;
+    background:var(--ui-field);
+    border:1px solid var(--ui-border);
+    border-radius:8px;
+    cursor:pointer;
+  }
+  input[type="color"]::-webkit-color-swatch-wrapper{ padding:0; }
+  input[type="color"]::-webkit-color-swatch{ border:none; border-radius:5px; }
+  input[type="color"]::-moz-color-swatch{ border:none; border-radius:5px; }
+  input[type="range"]{ width:100%; accent-color:var(--ui-accent); margin:6px 0 2px; }
+
+  .hms{
+    display:grid;
+    grid-template-columns:1fr auto 1fr auto 1fr;
+    gap:8px;
+    align-items:end;
+  }
+  .hms input{
+    text-align:center;
+    font-size:18px;
+    font-weight:600;
+    font-variant-numeric:tabular-nums;
+    height:44px;
+  }
+  .hms label{ justify-content:center; }
+  .hms .colon{ height:44px; line-height:42px; color:var(--ui-faint); font-size:18px; }
+
+  .hint{
+    font-size:11.5px;
+    line-height:1.5;
+    color:var(--ui-faint);
+    margin:0;
+  }
+
+  /* toggle switch */
+  .switch-row{
+    display:flex; align-items:center; justify-content:space-between; gap:12px;
+    font-size:13px; color:var(--ui-text);
+    cursor:pointer;
+    min-height:var(--ui-ctl);
+  }
+  input.switch{
+    -webkit-appearance:none; appearance:none;
+    width:38px; height:22px; flex:none;
+    margin:0; border:0; padding:0;
+    border-radius:11px;
+    background:#2b323d;
+    position:relative;
+    cursor:pointer;
+    transition:background .15s ease;
+  }
+  input.switch::after{
+    content:""; position:absolute; top:3px; left:3px;
+    width:16px; height:16px; border-radius:50%;
+    background:#cfd5df;
+    transition:transform .15s ease, background .15s ease;
+  }
+  input.switch:checked{ background:var(--ui-accent); }
+  input.switch:checked::after{ transform:translateX(16px); background:#fff; }
+
+  /* dim dependent controls when their switch is off */
+  .card:has(#blinkEnabled:not(:checked)) .dep{ opacity:.4; pointer-events:none; }
+
+  /* ---------- Buttons ---------- */
+  .btn{
+    height:var(--ui-ctl);
+    padding:0 14px;
+    border-radius:8px;
+    border:1px solid var(--ui-border);
+    background:#222833;
+    color:var(--ui-text);
+    font:inherit;
+    font-size:13px;
+    font-weight:600;
+    cursor:pointer;
+    display:inline-flex; align-items:center; justify-content:center; gap:6px;
+    white-space:nowrap;
+    transition:background .12s ease, border-color .12s ease, transform .05s ease, filter .12s ease;
+  }
+  .btn:hover{ background:#2a313e; border-color:var(--ui-border-hover); }
+  .btn:active{ transform:translateY(1px); }
+  .btn-lg{ height:46px; padding:0 22px; font-size:14px; border-radius:10px; }
+  .btn-block{ width:100%; }
+  .btn-start{ background:var(--ui-green); border-color:transparent; color:#fff; }
+  .btn-start:hover{ background:var(--ui-green); filter:brightness(1.1); border-color:transparent; }
+  .btn-pause{ background:var(--ui-amber); border-color:transparent; color:#1a1d23; }
+  .btn-pause:hover{ background:var(--ui-amber); filter:brightness(1.1); border-color:transparent; }
+  .btn-primary{ background:var(--ui-accent); border-color:transparent; color:#fff; }
+  .btn-primary:hover{ background:var(--ui-accent); filter:brightness(1.1); border-color:transparent; }
+  .btn-danger{ color:var(--ui-red); }
+  .btn-danger:hover{ background:rgba(229,83,75,.12); border-color:rgba(229,83,75,.5); }
+
+  .btn-group{ display:flex; gap:8px; flex-wrap:wrap; align-items:center; }
+  .seg{
+    display:inline-flex;
+    border:1px solid var(--ui-border);
+    border-radius:8px;
+    overflow:hidden;
+    background:#222833;
+  }
+  .seg .btn{
+    border:0; border-radius:0; background:transparent; padding:0 12px;
+    font-variant-numeric:tabular-nums;
+  }
+  .seg .btn + .btn{ border-left:1px solid var(--ui-border); }
+  .seg .btn:hover{ background:#2a313e; }
+
+  /* ---------- Transport bar ---------- */
+  .transport{
+    flex-direction:row;
+    flex-wrap:wrap;
+    align-items:center;
+    justify-content:space-between;
+    gap:16px 24px;
+    padding:14px 18px;
+  }
+  .transport-main, .transport-side{ display:flex; align-items:center; gap:10px; flex-wrap:wrap; }
+
+  /* ---------- Status pill ---------- */
+  .status-pill{
+    display:inline-flex; align-items:center; gap:7px;
+    height:26px; padding:0 12px;
+    border-radius:13px;
+    font-size:11px; font-weight:700; letter-spacing:0.08em;
+    margin-left:6px;
+  }
+  .status-pill::before{ content:""; width:7px; height:7px; border-radius:50%; background:currentColor; }
+  .status-running{ background:rgba(47,180,87,.16); color:#4ade80; }
+  .status-paused{ background:rgba(229,166,10,.16); color:#f5c542; }
+  .status-stopped{ background:#222833; color:var(--ui-muted); }
+
+  /* ---------- Log table ---------- */
+  #logWrap{
+    flex:1; min-height:120px; max-height:260px; overflow-y:auto;
+    border:1px solid var(--ui-border); border-radius:8px;
+    background:var(--ui-field);
+  }
+  table{ width:100%; border-collapse:collapse; font-size:13px; }
+  th, td{ text-align:left; padding:8px 10px; border-bottom:1px solid var(--ui-border); }
+  tbody tr:last-child td{ border-bottom:0; }
+  th{
+    position:sticky; top:0;
+    background:#141820;
+    color:var(--ui-muted);
+    font-weight:600; font-size:11px; text-transform:uppercase; letter-spacing:0.07em;
+  }
+  td{ font-variant-numeric:tabular-nums; }
+  tbody tr:hover td{ background:rgba(255,255,255,.02); }
+  td.del{
+    text-align:right; cursor:pointer; color:var(--ui-faint); font-weight:700; width:40px;
+  }
+  td.del:hover{ color:var(--ui-red); }
+  .empty-row td{ color:var(--ui-faint); text-align:center; padding:22px 12px; }
+
+  ::-webkit-scrollbar{ width:8px; height:8px; }
+  ::-webkit-scrollbar-thumb{ background:#333944; border-radius:4px; }
+  ::-webkit-scrollbar-track{ background:transparent; }
+</style>
+</head>
+<body>
+
+<div id="display">
+  <div id="label-overlay">
+    <span id="time-text">00:00</span>
+    <span class="sublabel" id="sub-label"></span>
+  </div>
+</div>
+
+<div class="cropbar">▲ Display area — crop this region in your switcher</div>
+
+<div id="panel">
+
+  <!-- Transport -->
+  <section class="card transport">
+    <div class="transport-main">
+      <button class="btn btn-lg btn-start" id="startBtn" onclick="startTimer()">▶ Start</button>
+      <button class="btn btn-lg btn-pause" id="pauseBtn" onclick="pauseTimer()">❚❚ Pause</button>
+      <button class="btn btn-lg" onclick="resetTimer()">↺ Reset</button>
+      <span class="status-pill status-stopped" id="statusPill">STOPPED</span>
+    </div>
+    <div class="transport-side">
+      <div class="seg" title="Add or remove time while running">
+        <button class="btn" onclick="adjustTime(-60)">−1m</button>
+        <button class="btn" onclick="adjustTime(-10)">−10s</button>
+        <button class="btn" onclick="adjustTime(10)">+10s</button>
+        <button class="btn" onclick="adjustTime(60)">+1m</button>
+      </div>
+      <button class="btn btn-primary" onclick="openFullscreen()">⤢ Open fullscreen tab</button>
+    </div>
+  </section>
+
+  <div class="grid">
+
+    <div class="col">
+    <!-- Timer -->
+    <section class="card">
+      <h3>Timer</h3>
+      <div class="field">
+        <label for="mode">Type</label>
+        <select id="mode">
+          <option value="countdown">Countdown</option>
+          <option value="stopwatch">Timer (count up)</option>
+        </select>
+      </div>
+      <div class="field">
+        <label>Countdown start time</label>
+        <div class="hms">
+          <div class="field"><label for="hh">Hours</label><input type="number" id="hh" min="0" max="99" value="0"></div>
+          <span class="colon">:</span>
+          <div class="field"><label for="mm">Min</label><input type="number" id="mm" min="0" max="59" value="5"></div>
+          <span class="colon">:</span>
+          <div class="field"><label for="ss">Sec</label><input type="number" id="ss" min="0" max="59" value="0"></div>
+        </div>
+      </div>
+      <div class="field">
+        <label for="subLabelInput">On-screen label <span>optional</span></label>
+        <input type="text" id="subLabelInput" placeholder="e.g. UNTIL LIVE">
+      </div>
+    </section>
+
+    <!-- Blink warning -->
+    <section class="card">
+      <h3>Blink warning</h3>
+      <label class="switch-row" for="blinkEnabled">
+        <span>Blink when nearing zero</span>
+        <input type="checkbox" class="switch" id="blinkEnabled" checked>
+      </label>
+      <div class="field dep">
+        <label for="blinkThreshold">Start blinking at <span>seconds remaining</span></label>
+        <input type="number" id="blinkThreshold" min="1" max="600" value="10">
+      </div>
+      <div class="field dep">
+        <label for="blinkColor">Blink color</label>
+        <input type="color" id="blinkColor" value="#ff2d2d">
+      </div>
+      <div class="field dep">
+        <label for="blinkSpeed">Blink speed <span class="val"><span id="blinkSpeedVal">500</span> ms</span></label>
+        <input type="range" id="blinkSpeed" min="150" max="1500" step="50" value="500">
+      </div>
+    </section>
+    </div>
+
+    <div class="col">
+    <!-- Appearance -->
+    <section class="card">
+      <h3>Appearance</h3>
+      <div class="two">
+        <div class="field"><label for="bgColor">Background</label><input type="color" id="bgColor" value="#0b0e12"></div>
+        <div class="field"><label for="textColor">Text color</label><input type="color" id="textColor" value="#ffffff"></div>
+      </div>
+      <div class="field">
+        <label for="fontSelect">Font</label>
+        <select id="fontSelect">
+          <option value="'Bahnschrift','Segoe UI',sans-serif">Bahnschrift (default)</option>
+          <option value="'Courier New', monospace">Courier New (mono)</option>
+          <option value="'Arial Black', sans-serif">Arial Black</option>
+          <option value="Georgia, serif">Georgia (serif)</option>
+          <option value="'Trebuchet MS', sans-serif">Trebuchet MS</option>
+          <option value="'Impact', sans-serif">Impact</option>
+        </select>
+        <button class="btn btn-block" onclick="loadSystemFonts()">Load installed fonts</button>
+        <p class="hint" id="fontStatus">Chrome/Edge only. Lists every font on this computer.</p>
+      </div>
+      <div class="field">
+        <label for="customFont">Or type any font name</label>
+        <input type="text" id="customFont" placeholder="e.g. DIN Condensed (overrides list)">
+      </div>
+      <div class="field">
+        <label for="fontSize">Font size <span class="val"><span id="fontSizeVal">18</span> vw</span></label>
+        <input type="range" id="fontSize" min="6" max="30" value="18">
+      </div>
+      <div class="field">
+        <label for="decimalsSelect">Fractions of a second</label>
+        <select id="decimalsSelect">
+          <option value="0">Off</option>
+          <option value="1">Tenths (0.1s)</option>
+          <option value="2">Hundredths (0.01s)</option>
+        </select>
+      </div>
+      <label class="switch-row" for="chromaKey">
+        <span>Green screen background<br><span class="hint">For keying instead of cropping</span></span>
+        <input type="checkbox" class="switch" id="chromaKey">
+      </label>
+    </section>
+    </div>
+
+    <div class="col">
+    <!-- Save split -->
+    <section class="card">
+      <h3>Save split</h3>
+      <div class="field">
+        <label for="splitLabel">Label for this save</label>
+        <input type="text" id="splitLabel" placeholder="e.g. Segment 1 finished">
+      </div>
+      <button class="btn btn-primary btn-lg btn-block" onclick="saveSplit()">💾 Save current time</button>
+      <div class="two">
+        <button class="btn" onclick="exportCSV()">Export CSV</button>
+        <button class="btn btn-danger" onclick="clearLog()">Clear log</button>
+      </div>
+      <p class="hint">Add this page (or the fullscreen tab) as an OBS / vMix browser source, then crop to the display area at the top.</p>
+    </section>
+
+    <!-- Saved times -->
+  <section class="card">
+    <h3>Saved times</h3>
+    <div id="logWrap">
+      <table>
+        <thead>
+          <tr><th>#</th><th>Label</th><th>Value</th><th>Clock</th><th></th></tr>
+        </thead>
+        <tbody id="logBody">
+          <tr class="empty-row"><td colspan="5">No entries yet — press "Save current time" during a run.</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </section>
+    </div>
+
+  </div>
+
+</div>
+
+<script>
+/* ---------- State ----------
+   Time tracking is clock-based (anchored to Date.now()), not accumulated
+   per-frame. That way it stays correct even if the tab is backgrounded and
+   the browser throttles timers — whenever a tick does fire, it recomputes
+   from the real elapsed wall-clock time instead of drifting. */
+let mode = 'countdown';
+let totalMs = 300000;       // target duration for countdown (ms)
+let pausedAccumMs = 0;      // ms accumulated from previous run segments
+let anchorStart = null;     // Date.now() timestamp when current run segment started
+let running = false;
+let intervalId = null;
+let popup = null;
+let log = [];
+
+function elapsedNow(){
+  return pausedAccumMs + (running && anchorStart !== null ? (Date.now() - anchorStart) : 0);
+}
+function currentMsCalc(){
+  if(mode === 'countdown'){
+    return Math.max(0, totalMs - elapsedNow());
+  }
+  return elapsedNow();
+}
+
+/* ---------- Elements ---------- */
+const displayEl = document.getElementById('display');
+const timeTextEl = document.getElementById('time-text');
+const subLabelEl = document.getElementById('sub-label');
+const statusPill = document.getElementById('statusPill');
+const logBody = document.getElementById('logBody');
+
+const modeSel = document.getElementById('mode');
+const hhInp = document.getElementById('hh');
+const mmInp = document.getElementById('mm');
+const ssInp = document.getElementById('ss');
+const subLabelInput = document.getElementById('subLabelInput');
+
+const bgColor = document.getElementById('bgColor');
+const textColor = document.getElementById('textColor');
+const fontSelect = document.getElementById('fontSelect');
+const fontSize = document.getElementById('fontSize');
+const fontSizeVal = document.getElementById('fontSizeVal');
+const decimalsSelect = document.getElementById('decimalsSelect');
+const chromaKey = document.getElementById('chromaKey');
+
+const blinkEnabled = document.getElementById('blinkEnabled');
+const blinkThreshold = document.getElementById('blinkThreshold');
+const blinkColor = document.getElementById('blinkColor');
+const blinkSpeed = document.getElementById('blinkSpeed');
+const blinkSpeedVal = document.getElementById('blinkSpeedVal');
+
+/* ---------- Formatting ---------- */
+function fmt(ms, decimals){
+  if(ms < 0) ms = 0;
+  const totalSec = Math.floor(ms/1000);
+  const h = Math.floor(totalSec/3600);
+  const m = Math.floor((totalSec%3600)/60);
+  const s = totalSec%60;
+  let out;
+  if(h > 0){
+    out = String(h).padStart(2,'0')+':'+String(m).padStart(2,'0')+':'+String(s).padStart(2,'0');
+  } else {
+    out = String(m).padStart(2,'0')+':'+String(s).padStart(2,'0');
+  }
+  if(decimals === 1){
+    const tenths = Math.floor((ms%1000)/100);
+    out += '.'+tenths;
+  } else if(decimals === 2){
+    const hundredths = Math.floor((ms%1000)/10);
+    out += '.'+String(hundredths).padStart(2,'0');
+  }
+  return out;
+}
+
+/* ---------- Core loop ----------
+   setInterval (not requestAnimationFrame) — rAF can fully stop in a
+   backgrounded tab, while setInterval keeps firing (browsers cap it to
+   roughly once/second in the background, which is still enough since the
+   value shown is always recomputed from the real clock). */
+let blinkOn = false;
+let lastBlinkToggle = 0;
+
+function render(){
+  const ms = currentMsCalc();
+  timeTextEl.textContent = fmt(ms, Number(decimalsSelect.value));
+  subLabelEl.textContent = subLabelInput.value.toUpperCase();
+
+  if(mode === 'countdown' && running && ms <= 0){
+    running = false;
+    pausedAccumMs = totalMs;
+    anchorStart = null;
+    if(intervalId){ clearInterval(intervalId); intervalId = null; }
+    updateStatus();
+  }
+
+  const secsLeft = Math.ceil(ms/1000);
+  let shouldConsiderBlink = blinkEnabled.checked && mode === 'countdown' && running;
+  if(shouldConsiderBlink && secsLeft <= Number(blinkThreshold.value) && secsLeft > 0){
+    const now = Date.now();
+    if(now - lastBlinkToggle > Number(blinkSpeed.value)){
+      blinkOn = !blinkOn;
+      lastBlinkToggle = now;
+    }
+    displayEl.classList.toggle('blink', blinkOn);
+  } else {
+    displayEl.classList.remove('blink');
+    blinkOn = false;
+  }
+}
+
+function updateStatus(){
+  const ms = currentMsCalc();
+  if(running){
+    statusPill.textContent = 'RUNNING';
+    statusPill.className = 'status-pill status-running';
+  } else if(mode === 'countdown' && ms === 0 && pausedAccumMs >= totalMs){
+    statusPill.textContent = 'FINISHED';
+    statusPill.className = 'status-pill status-stopped';
+  } else if(pausedAccumMs > 0){
+    statusPill.textContent = 'PAUSED';
+    statusPill.className = 'status-pill status-paused';
+  } else {
+    statusPill.textContent = 'STOPPED';
+    statusPill.className = 'status-pill status-stopped';
+  }
+}
+
+function ensureLoop(){
+  if(intervalId) return;
+  intervalId = setInterval(()=>{ render(); syncPopup(); }, 30);
+}
+
+/* ---------- Transport ---------- */
+function startTimer(){
+  if(running) return;
+  if(mode === 'countdown' && currentMsCalc() <= 0){
+    applyTimeInputs();
+  }
+  running = true;
+  anchorStart = Date.now();
+  updateStatus();
+  ensureLoop();
+  render();
+  broadcastState();
+}
+function pauseTimer(){
+  if(running){
+    pausedAccumMs = elapsedNow();
+    running = false;
+    anchorStart = null;
+  }
+  updateStatus();
+  render();
+  broadcastState();
+}
+function resetTimer(){
+  running = false;
+  anchorStart = null;
+  if(mode === 'countdown'){
+    applyTimeInputs();
+  } else {
+    pausedAccumMs = 0;
+  }
+  updateStatus();
+  render();
+  broadcastState();
+}
+function applyTimeInputs(){
+  const h = Number(hhInp.value)||0, m = Number(mmInp.value)||0, s = Number(ssInp.value)||0;
+  totalMs = (h*3600 + m*60 + s) * 1000;
+  pausedAccumMs = 0;
+}
+function adjustTime(deltaSeconds){
+  if(mode === 'countdown'){
+    totalMs = Math.max(0, totalMs + deltaSeconds*1000);
+  } else {
+    pausedAccumMs = Math.max(0, pausedAccumMs + deltaSeconds*1000);
+  }
+  render();
+  broadcastState();
+}
+
+modeSel.addEventListener('change', ()=>{
+  mode = modeSel.value;
+  running = false;
+  anchorStart = null;
+  if(mode === 'countdown'){ applyTimeInputs(); } else { pausedAccumMs = 0; }
+  updateStatus();
+  render();
+  broadcastState();
+});
+[hhInp,mmInp,ssInp].forEach(inp=>inp.addEventListener('change', ()=>{
+  if(mode==='countdown' && !running){ applyTimeInputs(); render(); broadcastState(); }
+}));
+
+ensureLoop();
+
+/* ---------- Fonts ---------- */
+const customFont = document.getElementById('customFont');
+const fontStatus = document.getElementById('fontStatus');
+
+function currentFontValue(){
+  const c = customFont.value.trim().replace(/["'\\;{}]/g,'');
+  if(c) return `"${c}", sans-serif`;
+  return fontSelect.value;
+}
+
+async function loadSystemFonts(){
+  if(!('queryLocalFonts' in window)){
+    fontStatus.textContent = 'Not supported in this browser. Use Chrome/Edge, or type the font name below.';
+    return;
+  }
+  try{
+    fontStatus.textContent = 'Waiting for permission...';
+    const fonts = await window.queryLocalFonts();
+    const families = [...new Set(fonts.map(f=>f.family))].sort((a,b)=>a.localeCompare(b));
+    const current = fontSelect.value;
+    const sep = document.createElement('option');
+    sep.disabled = true;
+    sep.textContent = '── Installed fonts ──';
+    fontSelect.appendChild(sep);
+    families.forEach(fam=>{
+      const o = document.createElement('option');
+      o.value = `"${fam.replace(/"/g,'')}", sans-serif`;
+      o.textContent = fam;
+      fontSelect.appendChild(o);
+    });
+    fontSelect.value = current;
+    fontStatus.textContent = families.length + ' font families loaded.';
+  }catch(err){
+    fontStatus.textContent = 'Could not access fonts (' + (err && err.name ? err.name : 'error') + '). Allow the permission, or type the name below.';
+  }
+}
+
+/* ---------- Appearance ---------- */
+function applyAppearance(){
+  document.documentElement.style.setProperty('--disp-bg', chromaKey.checked ? '#00ff00' : bgColor.value);
+  document.documentElement.style.setProperty('--disp-color', textColor.value);
+  document.documentElement.style.setProperty('--disp-font', currentFontValue());
+  document.documentElement.style.setProperty('--disp-size', fontSize.value+'vw');
+  document.documentElement.style.setProperty('--blink-color', blinkColor.value);
+  fontSizeVal.textContent = fontSize.value;
+  blinkSpeedVal.textContent = blinkSpeed.value;
+  broadcastState();
+}
+[bgColor,textColor,fontSelect,customFont,fontSize,decimalsSelect,chromaKey,blinkColor,blinkSpeed,blinkThreshold,blinkEnabled,subLabelInput].forEach(el=>{
+  el.addEventListener('input', applyAppearance);
+});
+
+/* ---------- Save / Log ---------- */
+function saveSplit(){
+  const label = document.getElementById('splitLabel').value.trim() || '(no label)';
+  const value = fmt(currentMsCalc(), Number(decimalsSelect.value));
+  const clock = new Date().toLocaleTimeString();
+  log.push({label, value, clock});
+  renderLog();
+  document.getElementById('splitLabel').value = '';
+}
+function renderLog(){
+  if(log.length === 0){
+    logBody.innerHTML = '<tr class="empty-row"><td colspan="5">No entries yet — press "Save current time" during a run.</td></tr>';
+    return;
+  }
+  logBody.innerHTML = log.map((row,i)=>`
+    <tr>
+      <td>${i+1}</td>
+      <td>${escapeHtml(row.label)}</td>
+      <td>${row.value}</td>
+      <td>${row.clock}</td>
+      <td class="del" onclick="deleteRow(${i})">✕</td>
+    </tr>`).join('');
+}
+function deleteRow(i){ log.splice(i,1); renderLog(); }
+function clearLog(){ if(confirm('Clear all saved entries?')){ log = []; renderLog(); } }
+function escapeHtml(s){ return s.replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
+function exportCSV(){
+  if(log.length===0){ alert('Nothing to export yet.'); return; }
+  let csv = 'Label,Recorded Value,Saved At\n';
+  log.forEach(r=>{ csv += `"${r.label.replace(/"/g,'""')}","${r.value}","${r.clock}"\n`; });
+  const blob = new Blob([csv], {type:'text/csv'});
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url; a.download = 'countdown-log.csv';
+  a.click();
+  URL.revokeObjectURL(url);
+}
+
+/* ---------- Fullscreen popup tab ----------
+   The popup keeps its OWN clock-based loop instead of depending on a
+   continuous stream of updates from this tab. That's the fix for the
+   freeze: if this tab is backgrounded and throttled, the popup (which is
+   presumably the foreground tab on the switcher machine) keeps computing
+   time from the shared anchor timestamp it was given, independently. We
+   only send it a message when the state actually changes. */
+function openFullscreen(){
+  popup = window.open('', '_blank');
+  if(!popup){ alert('Popup blocked — please allow popups for this page.'); return; }
+  popup.document.write(`
+<!DOCTYPE html><html><head><title>Countdown</title>
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<style>
+  html,body{margin:0;height:100%;background:#000;overflow:hidden;}
+  #d{
+    height:100%; width:100%;
+    display:flex; align-items:center; justify-content:center;
+    font-variant-numeric: tabular-nums;
+    text-align:center;
+  }
+  .sub{display:block; font-size:0.14em; opacity:0.75; letter-spacing:0.08em; font-family:'Segoe UI',sans-serif; margin-top:0.05em;}
+  #hint{
+    position:fixed; bottom:10px; left:50%; transform:translateX(-50%);
+    color:#666; font-family:sans-serif; font-size:12px; cursor:pointer;
+  }
+</style></head>
+<body>
+  <div id="d"><span id="t">00:00</span><span class="sub" id="s"></span></div>
+  <div id="hint" onclick="document.documentElement.requestFullscreen && document.documentElement.requestFullscreen()">click for fullscreen (F11 also works)</div>
+  <script>
+    let st = null;
+    let blinkOn = false, lastToggle = 0;
+
+    function fmt(ms, decimals){
+      if(ms < 0) ms = 0;
+      const totalSec = Math.floor(ms/1000);
+      const h = Math.floor(totalSec/3600);
+      const m = Math.floor((totalSec%3600)/60);
+      const s = totalSec%60;
+      let out;
+      if(h > 0) out = String(h).padStart(2,'0')+':'+String(m).padStart(2,'0')+':'+String(s).padStart(2,'0');
+      else out = String(m).padStart(2,'0')+':'+String(s).padStart(2,'0');
+      if(decimals === 1){
+        out += '.'+Math.floor((ms%1000)/100);
+      } else if(decimals === 2){
+        out += '.'+String(Math.floor((ms%1000)/10)).padStart(2,'0');
+      }
+      return out;
+    }
+
+    function localRender(){
+      if(!st) return;
+      const elapsed = st.pausedAccumMs + (st.running && st.anchorStart !== null ? (Date.now() - st.anchorStart) : 0);
+      const ms = st.mode === 'countdown' ? Math.max(0, st.totalMs - elapsed) : elapsed;
+      document.getElementById('t').textContent = fmt(ms, st.decimals || 0);
+      document.getElementById('s').textContent = st.sub || '';
+      const d = document.getElementById('d');
+      d.style.color = st.color;
+      d.style.fontFamily = st.font;
+      d.style.fontSize = st.size;
+
+      const secsLeft = Math.ceil(ms/1000);
+      let shouldBlink = st.blinkEnabled && st.mode === 'countdown' && st.running && secsLeft <= st.blinkThreshold && secsLeft > 0;
+      if(shouldBlink){
+        const now = Date.now();
+        if(now - lastToggle > st.blinkSpeed){ blinkOn = !blinkOn; lastToggle = now; }
+        d.style.background = blinkOn ? st.blinkColor : st.bg;
+      } else {
+        d.style.background = st.bg;
+        blinkOn = false;
+      }
+    }
+
+    window.addEventListener('message', (e)=>{
+      const data = e.data;
+      if(!data || data.type !== 'state') return;
+      st = data;
+      localRender();
+    });
+
+    setInterval(localRender, 30);
+  <\/script>
+</body></html>`);
+  popup.document.close();
+  broadcastState();
+}
+function currentStatePayload(){
+  return {
+    type: 'state',
+    mode, running,
+    anchorStart, pausedAccumMs, totalMs,
+    sub: subLabelInput.value.toUpperCase(),
+    bg: chromaKey.checked ? '#00ff00' : bgColor.value,
+    color: textColor.value,
+    font: currentFontValue(),
+    size: fontSize.value+'vw',
+    blinkEnabled: blinkEnabled.checked,
+    blinkThreshold: Number(blinkThreshold.value),
+    blinkColor: blinkColor.value,
+    blinkSpeed: Number(blinkSpeed.value),
+    decimals: Number(decimalsSelect.value)
+  };
+}
+function broadcastState(){
+  if(!popup || popup.closed) return;
+  popup.postMessage(currentStatePayload(), '*');
+}
+function syncPopup(){ /* popup now runs its own clock; state is pushed only on change */ }
+
+/* ---------- Init ---------- */
+applyTimeInputs();
+applyAppearance();
+updateStatus();
+render();
+</script>
+</body>
+</html>
