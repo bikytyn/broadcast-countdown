@@ -12,6 +12,9 @@
     --disp-font: 'Bahnschrift', 'Segoe UI', sans-serif;
     --disp-size: 18vw;
     --blink-color: #ff2d2d;
+    --label-size: 2.5vw;
+    --label-gap: 0.5vw;
+    --label-font: var(--disp-font);
 
     /* control panel UI */
     --ui-bg: #0f1217;
@@ -57,17 +60,26 @@
     transition:background .15s ease, color .15s ease;
     text-align:center;
     padding:0 2vw;
+    overflow:hidden;
   }
+  #time-text{ white-space:nowrap; }
   #display.blink{ background:var(--blink-color); }
-  #label-overlay{ position:relative; }
-  .sublabel{
-    font-size:0.14em;
-    opacity:0.75;
-    display:block;
-    font-family:'Segoe UI', sans-serif;
-    letter-spacing:0.08em;
-    margin-top:0.05em;
+  #label-overlay{
+    position:relative;
+    display:flex; flex-direction:column; align-items:center;
   }
+  .sublabel{
+    font-size:var(--label-size);
+    font-family:var(--label-font);
+    opacity:0.75;
+    letter-spacing:0.08em;
+    line-height:1;
+    white-space:nowrap;
+    margin:0;
+  }
+  .sublabel:empty{ display:none; }
+  #label-overlay.label-above .sublabel{ order:-1; margin-bottom:var(--label-gap); }
+  #label-overlay.label-below .sublabel{ order:1;  margin-top:var(--label-gap); }
   .cropbar{
     height:28px;
     display:flex; align-items:center; justify-content:center;
@@ -80,7 +92,7 @@
   /* ---------- Layout ---------- */
   #panel{
     padding:20px 24px 40px;
-    max-width:1240px;
+    max-width:1400px;
     margin:0 auto;
     display:flex;
     flex-direction:column;
@@ -88,7 +100,7 @@
   }
   .grid{
     display:grid;
-    grid-template-columns:repeat(auto-fit, minmax(320px, 1fr));
+    grid-template-columns:repeat(auto-fit, minmax(270px, 1fr));
     gap:16px;
     align-items:stretch;
   }
@@ -255,6 +267,21 @@
   }
   .seg .btn + .btn{ border-left:1px solid var(--ui-border); }
   .seg .btn:hover{ background:#2a313e; }
+  .seg .btn.active, .seg .btn.active:hover{ background:var(--ui-accent); color:#fff; }
+  .seg-fill{ display:flex; width:100%; }
+  .seg-fill .btn{ flex:1; padding:0 8px; }
+
+  .keys{ display:flex; flex-wrap:wrap; gap:10px 18px; font-size:13px; }
+  .keys span{ display:inline-flex; align-items:center; gap:8px; }
+  .kbd{
+    display:inline-flex; align-items:center; justify-content:center;
+    min-width:24px; height:24px; padding:0 6px;
+    border:1px solid var(--ui-border-hover); border-bottom-width:2px;
+    border-radius:6px; background:#222833;
+    font:600 12px/1 ui-monospace, Menlo, Consolas, monospace;
+    color:var(--ui-text);
+  }
+  td .sub{ display:block; font-size:11px; color:var(--ui-faint); margin-top:2px; }
 
   /* ---------- Transport bar ---------- */
   .transport{
@@ -363,10 +390,6 @@
           <div class="field"><label for="ss">Sec</label><input type="number" id="ss" min="0" max="59" value="0"></div>
         </div>
       </div>
-      <div class="field">
-        <label for="subLabelInput">On-screen label <span>optional</span></label>
-        <input type="text" id="subLabelInput" placeholder="e.g. UNTIL LIVE">
-      </div>
     </section>
 
     <!-- Blink warning -->
@@ -421,17 +444,64 @@
         <input type="range" id="fontSize" min="6" max="30" value="18">
       </div>
       <div class="field">
-        <label for="decimalsSelect">Fractions of a second</label>
-        <select id="decimalsSelect">
-          <option value="0">Off</option>
-          <option value="1">Tenths (0.1s)</option>
-          <option value="2">Hundredths (0.01s)</option>
-        </select>
-      </div>
+          <label>Fractions of a second</label>
+          <div class="seg seg-fill" data-target="decimalsSelect">
+            <button class="btn" data-val="0">Off</button>
+            <button class="btn" data-val="1">0.1</button>
+            <button class="btn" data-val="2">0.01</button>
+          </div>
+          <input type="hidden" id="decimalsSelect" value="0">
+        </div>
       <label class="switch-row" for="chromaKey">
         <span>Green screen background<br><span class="hint">For keying instead of cropping</span></span>
         <input type="checkbox" class="switch" id="chromaKey">
       </label>
+    </section>
+    </div>
+
+    <div class="col">
+    <!-- Label -->
+    <section class="card">
+      <h3>Label</h3>
+      <div class="field">
+        <label for="subLabelInput">Text <span>optional</span></label>
+        <input type="text" id="subLabelInput" placeholder="e.g. UNTIL LIVE">
+      </div>
+      <div class="field">
+        <label>Position</label>
+        <div class="seg seg-fill" data-target="labelPos">
+          <button class="btn" data-val="above">Above time</button>
+          <button class="btn" data-val="below">Below time</button>
+        </div>
+        <input type="hidden" id="labelPos" value="below">
+      </div>
+      <div class="field">
+        <label for="labelGap">Spacing to time <span class="val"><span id="labelGapVal">0.5</span> vw</span></label>
+        <input type="range" id="labelGap" min="-4" max="10" step="0.1" value="0.5">
+      </div>
+      <div class="field">
+        <label for="labelSize">Size <span class="val"><span id="labelSizeVal">2.5</span> vw</span></label>
+        <input type="range" id="labelSize" min="0.8" max="15" step="0.1" value="2.5">
+      </div>
+      <div class="field">
+        <label for="labelFontSelect">Font</label>
+        <select id="labelFontSelect"><option value="">Same as time</option></select>
+      </div>
+      <div class="field">
+        <label for="labelCustomFont">Or type any font name</label>
+        <input type="text" id="labelCustomFont" placeholder="e.g. Segoe UI (overrides list)">
+      </div>
+    </section>
+
+    <!-- Shortcuts -->
+    <section class="card">
+      <h3>Keyboard shortcuts</h3>
+      <div class="keys">
+        <span><span class="kbd">S</span> Start</span>
+        <span><span class="kbd">P</span> Pause</span>
+        <span><span class="kbd">R</span> Reset</span>
+      </div>
+      <p class="hint">Work here and in the fullscreen tab. Ignored while you are typing in a field.</p>
     </section>
     </div>
 
@@ -457,10 +527,10 @@
     <div id="logWrap">
       <table>
         <thead>
-          <tr><th>#</th><th>Label</th><th>Value</th><th>Clock</th><th></th></tr>
+          <tr><th>#</th><th>Label</th><th>Value</th><th></th></tr>
         </thead>
         <tbody id="logBody">
-          <tr class="empty-row"><td colspan="5">No entries yet — press "Save current time" during a run.</td></tr>
+          <tr class="empty-row"><td colspan="4">No entries yet — press "Save current time" during a run.</td></tr>
         </tbody>
       </table>
     </div>
@@ -700,10 +770,34 @@ async function loadSystemFonts(){
       fontSelect.appendChild(o);
     });
     fontSelect.value = current;
+    syncLabelFontOptions();
     fontStatus.textContent = families.length + ' font families loaded.';
   }catch(err){
     fontStatus.textContent = 'Could not access fonts (' + (err && err.name ? err.name : 'error') + '). Allow the permission, or type the name below.';
   }
+}
+
+/* ---------- Label styling ---------- */
+const labelWrap = document.getElementById('label-overlay');
+const labelPos = document.getElementById('labelPos');
+const labelGap = document.getElementById('labelGap');
+const labelGapVal = document.getElementById('labelGapVal');
+const labelSize = document.getElementById('labelSize');
+const labelSizeVal = document.getElementById('labelSizeVal');
+const labelFontSelect = document.getElementById('labelFontSelect');
+const labelCustomFont = document.getElementById('labelCustomFont');
+
+function labelFontValue(){
+  const c = labelCustomFont.value.trim().replace(/["'\\;{}]/g,'');
+  if(c) return `"${c}", sans-serif`;
+  if(labelFontSelect.value) return labelFontSelect.value;
+  return currentFontValue();            // "Same as time"
+}
+function syncLabelFontOptions(){
+  const cur = labelFontSelect.value;
+  labelFontSelect.innerHTML = '<option value="">Same as time</option>';
+  [...fontSelect.options].forEach(o => labelFontSelect.appendChild(o.cloneNode(true)));
+  labelFontSelect.value = cur;
 }
 
 /* ---------- Appearance ---------- */
@@ -713,11 +807,20 @@ function applyAppearance(){
   document.documentElement.style.setProperty('--disp-font', currentFontValue());
   document.documentElement.style.setProperty('--disp-size', fontSize.value+'vw');
   document.documentElement.style.setProperty('--blink-color', blinkColor.value);
+  document.documentElement.style.setProperty('--label-font', labelFontValue());
+  document.documentElement.style.setProperty('--label-size', labelSize.value+'vw');
+  document.documentElement.style.setProperty('--label-gap', labelGap.value+'vw');
+  const above = labelPos.value === 'above';
+  labelWrap.classList.toggle('label-above', above);
+  labelWrap.classList.toggle('label-below', !above);
+  labelSizeVal.textContent = labelSize.value;
+  labelGapVal.textContent = labelGap.value;
   fontSizeVal.textContent = fontSize.value;
   blinkSpeedVal.textContent = blinkSpeed.value;
+  render();            // repaint immediately, even if the tick loop is stopped
   broadcastState();
 }
-[bgColor,textColor,fontSelect,customFont,fontSize,decimalsSelect,chromaKey,blinkColor,blinkSpeed,blinkThreshold,blinkEnabled,subLabelInput].forEach(el=>{
+[bgColor,textColor,fontSelect,customFont,fontSize,decimalsSelect,chromaKey,blinkColor,blinkSpeed,blinkThreshold,blinkEnabled,subLabelInput,labelPos,labelGap,labelSize,labelFontSelect,labelCustomFont].forEach(el=>{
   el.addEventListener('input', applyAppearance);
 });
 
@@ -732,15 +835,14 @@ function saveSplit(){
 }
 function renderLog(){
   if(log.length === 0){
-    logBody.innerHTML = '<tr class="empty-row"><td colspan="5">No entries yet — press "Save current time" during a run.</td></tr>';
+    logBody.innerHTML = '<tr class="empty-row"><td colspan="4">No entries yet — press "Save current time" during a run.</td></tr>';
     return;
   }
   logBody.innerHTML = log.map((row,i)=>`
     <tr>
       <td>${i+1}</td>
-      <td>${escapeHtml(row.label)}</td>
+      <td>${escapeHtml(row.label)}<span class="sub">${row.clock}</span></td>
       <td>${row.value}</td>
-      <td>${row.clock}</td>
       <td class="del" onclick="deleteRow(${i})">✕</td>
     </tr>`).join('');
 }
@@ -779,15 +881,20 @@ function openFullscreen(){
     display:flex; align-items:center; justify-content:center;
     font-variant-numeric: tabular-nums;
     text-align:center;
+    line-height:1; letter-spacing:0.02em;
+    overflow:hidden;
   }
-  .sub{display:block; font-size:0.14em; opacity:0.75; letter-spacing:0.08em; font-family:'Segoe UI',sans-serif; margin-top:0.05em;}
+  #w{display:flex; flex-direction:column; align-items:center;}
+  #t{white-space:nowrap;}
+  .sub{opacity:0.75; letter-spacing:0.08em; line-height:1; white-space:nowrap;}
+  .sub:empty{display:none;}
   #hint{
     position:fixed; bottom:10px; left:50%; transform:translateX(-50%);
     color:#666; font-family:sans-serif; font-size:12px; cursor:pointer;
   }
 </style></head>
 <body>
-  <div id="d"><span id="t">00:00</span><span class="sub" id="s"></span></div>
+  <div id="d"><div id="w"><span id="t">00:00</span><span class="sub" id="s"></span></div></div>
   <div id="hint" onclick="document.documentElement.requestFullscreen && document.documentElement.requestFullscreen()">click for fullscreen (F11 also works)</div>
   <script>
     let st = null;
@@ -815,7 +922,14 @@ function openFullscreen(){
       const elapsed = st.pausedAccumMs + (st.running && st.anchorStart !== null ? (Date.now() - st.anchorStart) : 0);
       const ms = st.mode === 'countdown' ? Math.max(0, st.totalMs - elapsed) : elapsed;
       document.getElementById('t').textContent = fmt(ms, st.decimals || 0);
-      document.getElementById('s').textContent = st.sub || '';
+      const s = document.getElementById('s');
+      s.textContent = st.sub || '';
+      s.style.fontSize = st.labelSize;
+      s.style.fontFamily = st.labelFont;
+      const above = st.labelPos === 'above';
+      s.style.order = above ? '-1' : '1';
+      s.style.margin = '0';
+      if(above) s.style.marginBottom = st.labelGap; else s.style.marginTop = st.labelGap;
       const d = document.getElementById('d');
       d.style.color = st.color;
       d.style.fontFamily = st.font;
@@ -841,6 +955,14 @@ function openFullscreen(){
     });
 
     setInterval(localRender, 30);
+
+    // relay S / P / R to the control tab
+    document.addEventListener('keydown', function(e){
+      if(e.ctrlKey || e.metaKey || e.altKey || e.repeat) return;
+      if(window.opener && !window.opener.closed){
+        window.opener.postMessage({type:'hotkey', key:e.key}, '*');
+      }
+    });
   <\/script>
 </body></html>`);
   popup.document.close();
@@ -860,7 +982,11 @@ function currentStatePayload(){
     blinkThreshold: Number(blinkThreshold.value),
     blinkColor: blinkColor.value,
     blinkSpeed: Number(blinkSpeed.value),
-    decimals: Number(decimalsSelect.value)
+    decimals: Number(decimalsSelect.value),
+    labelPos: labelPos.value,
+    labelGap: labelGap.value+'vw',
+    labelSize: labelSize.value+'vw',
+    labelFont: labelFontValue()
   };
 }
 function broadcastState(){
@@ -869,7 +995,48 @@ function broadcastState(){
 }
 function syncPopup(){ /* popup now runs its own clock; state is pushed only on change */ }
 
+/* ---------- Segmented controls ---------- */
+document.querySelectorAll('.seg[data-target]').forEach(seg=>{
+  const target = document.getElementById(seg.dataset.target);
+  const paint = ()=> seg.querySelectorAll('.btn').forEach(b=>b.classList.toggle('active', b.dataset.val === target.value));
+  seg.addEventListener('click', e=>{
+    const b = e.target.closest('.btn');
+    if(!b) return;
+    target.value = b.dataset.val;
+    paint();
+    target.dispatchEvent(new Event('input'));
+  });
+  paint();
+});
+
+/* ---------- Keyboard shortcuts (S start, P pause, R reset) ---------- */
+function isTyping(el){
+  if(!el) return false;
+  const tag = el.tagName;
+  if(tag === 'TEXTAREA' || tag === 'SELECT' || el.isContentEditable) return true;
+  if(tag === 'INPUT'){
+    return ['text','number','search','email','url','tel','password'].includes((el.type||'text').toLowerCase());
+  }
+  return false;
+}
+function handleHotkey(key){
+  const k = String(key).toLowerCase();
+  if(k === 's') startTimer();
+  else if(k === 'p') pauseTimer();
+  else if(k === 'r') resetTimer();
+}
+document.addEventListener('keydown', e=>{
+  if(e.ctrlKey || e.metaKey || e.altKey || e.repeat) return;
+  if(isTyping(e.target)) return;
+  handleHotkey(e.key);
+});
+// keys pressed in the fullscreen tab are relayed here
+window.addEventListener('message', e=>{
+  if(e.source === popup && e.data && e.data.type === 'hotkey') handleHotkey(e.data.key);
+});
+
 /* ---------- Init ---------- */
+syncLabelFontOptions();
 applyTimeInputs();
 applyAppearance();
 updateStatus();
